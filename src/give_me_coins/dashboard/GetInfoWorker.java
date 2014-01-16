@@ -1,24 +1,3 @@
-/**
- * 	Copyrights reserved to authors of this code (available from GitHub
- * 	repository https://github.com/Letme/give-me-coinsMonitoringApp
- * 
- *  This file is part of Give-me-coins.com Dashboard Android App
- * 
- *	Give-me-coins.com Dashboard is free software: you can redistribute it 
- *	and/or modify it under the terms of the GNU General Public License as 
- *  published by the Free Software Foundation, either version 3 of the 
- *  License, or (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 package give_me_coins.dashboard;
 
 import android.os.AsyncTask;
@@ -34,82 +13,124 @@ import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.util.ArrayList;
 
 import javax.net.ssl.HttpsURLConnection;
 
 /**
  * Created by Patrik on 06.11.13.
  */
-public class GetInfoWorker extends AsyncTask<Void,JSONObject, Void >
-{
+class GetInfoWorker extends AsyncTask<Void, JSONObject, Void> {
 
     private static final String TAG = "GetInfoWorker";
 	private boolean isRunning = true;
-    private int iConnectionTimeout = 5000;
-    private GetInfoWorkerCallback getInfoWorkerCallback;
-    private int sleepTime = 60000; // 1 min
+    private static final int iConnectionTimeout = 5000;
+    private final ArrayList<GetInfoWorkerCallback> getInfoWorkerCallbacks = new ArrayList<GetInfoWorkerCallback>();
+    private final boolean[] showCoin = {true, true, true};
+    private int sleepTime = 60000; // 1 min - default value
+    private boolean isSleeping = false;
 
-    public String getUrlToGiveMeCoins() {
+
+    private String getUrlToGiveMeCoins() {
         return urlToGiveMeCoins;
     }
 
-    public void setUrlToGiveMeCoins(String urlToGiveMeCoins) {
+    void setUrlToGiveMeCoins(String urlToGiveMeCoins) {
         this.urlToGiveMeCoins = urlToGiveMeCoins;
     }
 
-    String urlToGiveMeCoins = null;
+    private String urlToGiveMeCoins = null;
+	private Thread oCurrentWorkerThread;
 
-    public boolean isRunning() {
+
+    private boolean isRunning() {
         return isRunning;
     }
 
-    public void setRunning(boolean isRunning) {
+    /**
+     * 
+     * @param isRunning = false stops running
+     */
+    void setRunning(boolean isRunning) {
         this.isRunning = isRunning;
     }
 
-    public int getSleepTime() {
+    /**
+     * 
+     * @return time the process sleeps between refreshes
+     */
+    private int getSleepTime() {
         return sleepTime;
     }
 
-    public void setSleepTime(int sleepTime) {
+    
+    /**
+     * sets time the process sleeps between refreshes
+     * @param sleepTime
+     */
+    void setSleepTime(int sleepTime) {
         this.sleepTime = sleepTime;
     }
 
-    public GetInfoWorker(GetInfoWorkerCallback para_getInfoWorkerCallback) {
-        this.getInfoWorkerCallback = para_getInfoWorkerCallback;
+    
+    GetInfoWorker(GetInfoWorkerCallback para_getInfoWorkerCallbackBTC, GetInfoWorkerCallback para_getInfoWorkerCallbackLTC, GetInfoWorkerCallback para_getInfoWorkerCallbackFTC) {
+		getInfoWorkerCallbacks.add( para_getInfoWorkerCallbackBTC );
+		getInfoWorkerCallbacks.add( para_getInfoWorkerCallbackLTC );
+        getInfoWorkerCallbacks.add( para_getInfoWorkerCallbackFTC );
+
     }
 
     @Override
     protected Void doInBackground(Void... params) {
-
+    	oCurrentWorkerThread = Thread.currentThread();
         while( isRunning )
         {
             if(urlToGiveMeCoins != null )
             {
-                try {
-                    URL currentUrl = new URL(urlToGiveMeCoins);
-                    // bring it to UI
-                    JSONObject currentJson = getJSONFromUrl(currentUrl);
-                    if( currentJson != null )
-                    {
-                      //  Log.d(TAG,currentJson.toString() );
-                        publishProgress( currentJson );
-                    }
-                    else
-                    {
-                        Log.e(TAG, "failed to get a valid json");
-                    }
+                final String[] currencySwitcher = {"btc","ltc","ftc"};
+	            for(int i = 0; i<3;i++)
+	            {
+	            	if( showCoin[i] && getInfoWorkerCallbacks.get(i) != null )
+	            	{
+	            		try {
+		                	String currentUrlString = urlToGiveMeCoins;
 
-                } catch (MalformedURLException e) {
-                    Log.e(TAG,e.toString());
-                }
-                
+	                		currentUrlString = currentUrlString.replace("ltc?api_key", currencySwitcher[i]+"?api_key");
+		                	if( getInfoWorkerCallbacks.get(i) != null )
+		                	{
+			                    URL currentUrl = new URL(currentUrlString);
+			                    // bring it to UI
+			                    JSONObject currentJson = getJSONFromUrl(currentUrl);
+			                    if( currentJson != null )
+			                    {
+			                      //  Log.d(TAG,currentJson.toString() );
+			                    	try {
+										currentJson.put("currency", i);
+									} catch (JSONException e) {
+										// TODO Auto-generated catch block
+										Log.e(TAG,"couldnt add currency");
+									}
+			                        publishProgress( currentJson );
+			                    }
+			                    else
+			                    {
+			                        Log.e(TAG, "failed to get a valid json");
+			                    }
+		                	}
+		                } 
+	            		catch (MalformedURLException e) 
+	            		{
+		                    Log.e(TAG,e.toString());
+		                }
+	            	} 
+	            }
                 try {
+                	setSleeping(true);
                     Thread.sleep(sleepTime);
+                    setSleeping(false);
                 } catch (InterruptedException e) {
                    Log.e(TAG, "error sleeping"+e.toString());
                 }
-                
             }
 
         } // protected Void doInBackground(String... params)
@@ -126,7 +147,8 @@ public class GetInfoWorker extends AsyncTask<Void,JSONObject, Void >
        // Log.e(TAG,currentCoinsInfo.getUsername() );
         try
         {
-            getInfoWorkerCallback.refreshValues(currentCoinsInfo);
+        	int currentCurrencyIndex = JSONHelper.getVal(values[0],"currency",0);
+            getInfoWorkerCallbacks.get(currentCurrencyIndex).refreshValues(currentCoinsInfo);
         }
         catch(Exception e)
         {
@@ -143,8 +165,6 @@ public class GetInfoWorker extends AsyncTask<Void,JSONObject, Void >
         {
 
             //Log.d(TAG,para_url.toString());
-            BufferedInputStream oInput = null;
-
             HttpsURLConnection oConnection = (HttpsURLConnection) para_url.openConnection();
             //	HttpsURLConnection.setDefaultHostnameVerifier(org.apache.http.conn.ssl.SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
 
@@ -152,7 +172,7 @@ public class GetInfoWorker extends AsyncTask<Void,JSONObject, Void >
             oConnection.setReadTimeout(iConnectionTimeout*2);
             //		connection.setRequestProperty ("Authorization", sAuthorization);
             oConnection.connect();
-            oInput = new BufferedInputStream( oConnection.getInputStream() );
+            BufferedInputStream oInput = new BufferedInputStream( oConnection.getInputStream() );
             BufferedReader reader = new BufferedReader( new InputStreamReader(oInput) );
             String sReturn = reader.readLine();
             //Log.d(TAG,sReturn);
@@ -183,4 +203,28 @@ public class GetInfoWorker extends AsyncTask<Void,JSONObject, Void >
         return oRetJson;
 
     }
+
+    /**
+     * 
+     * @return tells if process is currently sleeping 
+     */
+	private boolean isSleeping() {
+		return isSleeping;
+	}
+
+	private void setSleeping(boolean isSleeping) {
+		this.isSleeping = isSleeping;
+	}
+
+	void forceUpdate() {
+		oCurrentWorkerThread.interrupt();
+		
+	}
+
+	void setCoinsToShow(boolean para_showBTC, boolean para_showLTC, boolean para_showFTC)
+	{
+		showCoin[0] = para_showBTC;
+		showCoin[1] = para_showLTC;
+		showCoin[2] = para_showFTC;
+	}
 }

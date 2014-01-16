@@ -30,9 +30,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -49,11 +47,11 @@ public class GMCPoolService extends Service{
 	public static String url_fixed;
 	Timer timer;
 	
-	public GMCPoolService(Context context, Handler handler) {
+	public GMCPoolService(Handler handler) {
 		mHandler=handler;
 		
 	}
-	public synchronized void start(String... urls) {
+	synchronized void start(String... urls) {
 		if(urls.length==0) {
 			Log.e(TAG,"Bad URL handed to service");
 			MainScreen.mPoolService=null;
@@ -75,7 +73,7 @@ public class GMCPoolService extends Service{
 		}
 	}
 	
-	public synchronized void stop() {
+	synchronized void stop() {
 		timer.cancel();
 		if(DEBUG) Log.d(TAG,"Timer cancelled");
 		if(mReceiveData!=null) {
@@ -90,14 +88,15 @@ public class GMCPoolService extends Service{
 		InputStream inputStream=null;
 		BufferedReader reader = null;
 		JsonReader jsonAll=null;
-		String url_string;
+		final String url_string;
 		private static final String TAG = "PoolReceiveDataThread";
 		
 		public PoolReceiveDataThread (String urls){
 			if(DEBUG) Log.d(TAG,"public: " + urls);
 			url_string=urls;
 		}
-		
+
+		@Override
 		public void run() {
 			// TODO Auto-generated method stub
 						
@@ -115,6 +114,7 @@ public class GMCPoolService extends Service{
 								// TODO Auto-generated catch block
 								e1.printStackTrace();
 								Log.e(TAG,"InputStream IOException");
+								cancel();
 							}
 						if(DEBUG) Log.d(TAG,"Connection should be open by now");
 				    	try {
@@ -124,11 +124,24 @@ public class GMCPoolService extends Service{
 				    	} catch (Exception e) { 
 				    	    // Oops
 				    		Log.e(TAG,"Connecting failed!");
+				    		cancel();
 				    	}
-			if(jsonAll==null) jsonAll = new JsonReader(reader);
+			if(jsonAll==null) {
+				try {
+					jsonAll = new JsonReader(reader);
+				}
+				catch(NullPointerException e) {
+					Log.e(TAG,"JsonReader NullPointerException");
+					cancel();
+				}
+			}
 			//now lets parse the output form give-me-coins
 			if(DEBUG) Log.d(TAG,"Parsing json");
-
+			//we need a way to figure out if it is CloudFlare 521 site (which is not json
+			if(jsonAll==null){
+				cancel();
+				return;
+			}
 		   		try {
 					while (jsonAll.hasNext()) {
 						try {
@@ -144,15 +157,21 @@ public class GMCPoolService extends Service{
 								case NAME:
 									if(DEBUG) Log.d(TAG,"Main NAME");
 									String name=jsonAll.nextName();
-									if (name.equals("hashrate")) {
+									if ("hashrate".equals(name)) {
 										MainScreen.pool_total_hashrate=jsonAll.nextString();
-									} else if(name.equals("workers")) {
+									} else if("workers".equals(name)) {
 										MainScreen.pool_workers=jsonAll.nextString();
-									} else if(name.equals("shares_this_round")) {
+									} else if("shares_this_round".equals(name)) {
 										MainScreen.pool_round_shares=jsonAll.nextString();
-									} else if (name.equals("last_block")) {
+									} else if ("last_block".equals(name)) {
 										MainScreen.pool_last_block=jsonAll.nextString();
-									} else if (name.equals("difficulty")) {
+									} else if (name.equals("last_block_shares")) {
+										MainScreen.pool_last_block_shares=jsonAll.nextString();
+									} else if (name.equals("last_block_finder")) {
+										MainScreen.pool_last_block_finder=jsonAll.nextString();
+									} else if (name.equals("last_block_reward")) {
+										MainScreen.pool_last_block_reward=jsonAll.nextString();
+									} else if ("difficulty".equals(name)) {
 										MainScreen.pool_difficulty=jsonAll.nextString();
 									} else {
 										jsonAll.skipValue();
@@ -167,10 +186,15 @@ public class GMCPoolService extends Service{
 
 						} catch (IllegalStateException e) {	
 							Log.w(TAG,"IllegalStateException: " + e);
+							break;
 						} catch (IOException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
 							Log.w(TAG,"JSON MAIN IOException: " + e);
+							break;
+						} catch (NullPointerException e) {	
+							Log.w(TAG,"NullPointerException: " + e);
+							break;
 						}
 					}
 				} catch (IOException e) {
@@ -187,24 +211,24 @@ public class GMCPoolService extends Service{
 					cancel();
 		}
 
-		public void cancel() {
+		private void cancel() {
 	   		//Perform CLEANUP !!!!
 			try {
-				jsonAll.close();
+				if(jsonAll != null) jsonAll.close();
 				if(DEBUG) Log.d(TAG,"MAIN JSON closed");
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		    try {
-				reader.close();
+		    	if(reader != null)reader.close();
 				if(DEBUG) Log.d(TAG,"BufferedReader closed");
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 	   		try {
-				inputStream.close();
+	   			if(inputStream != null) inputStream.close();
 				if(DEBUG) Log.d(TAG,"InputStream closed");
 			} catch (IOException e) {
 				// TODO Auto-generated catch block

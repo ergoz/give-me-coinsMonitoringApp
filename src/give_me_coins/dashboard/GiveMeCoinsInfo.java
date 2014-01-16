@@ -18,7 +18,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 package give_me_coins.dashboard;
 
 
@@ -28,15 +27,17 @@ import org.json.JSONObject;
 import android.util.Log;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 
 /**
  * Created by Patrik on 06.11.13.
  */
-public class GiveMeCoinsInfo {
+class GiveMeCoinsInfo {
 
    private static final String TAG = "GiveMeCoinsInfo";
-   private static final boolean DEBUG = true;
+   private static final boolean DEBUG = false;
 	// https://give-me-coins.com/pool/api-ftc?api_key=82ca1174fe9fffb7c93e8270caa02226f720c93fa3247a82868a348019320bbd
 /*
 {
@@ -55,9 +56,10 @@ public class GiveMeCoinsInfo {
     private double round_estimate = 0;
     private double payout_history = 0;
     private long round_shares = 0;
-    private ArrayList<GiveMeCoinsWorkerInfo> giveMeCoinWorkers;
+    private final ArrayList<GiveMeCoinsWorkerInfo> giveMeCoinWorkers = new ArrayList<GiveMeCoinsWorkerInfo>();
 
-    public GiveMeCoinsInfo(JSONObject para_jsonReturn) {
+
+    GiveMeCoinsInfo(JSONObject para_jsonReturn) {
 
         total_hashrate = JSONHelper.getVal(para_jsonReturn, "total_hashrate", 0);
         confirmed_rewards = JSONHelper.getVal(para_jsonReturn, "confirmed_rewards", 0.0);
@@ -65,8 +67,7 @@ public class GiveMeCoinsInfo {
         round_estimate = JSONHelper.getVal(para_jsonReturn, "round_estimate", 0.0);
         payout_history = JSONHelper.getVal(para_jsonReturn, "payout_history", 0.0);
         round_shares = JSONHelper.getVal(para_jsonReturn, "round_shares", (long) 1);
-        giveMeCoinWorkers = new ArrayList<GiveMeCoinsWorkerInfo>();
-        		
+
         JSONObject workers = JSONHelper.getVal(para_jsonReturn, "workers", new JSONObject());
         Iterator<?> keys = workers.keys();
         
@@ -81,64 +82,89 @@ public class GiveMeCoinsInfo {
 				// TODO Auto-generated catch block
 				Log.e(TAG, "error - decoding workers "+e.toString());
 			}
-			
         }
+
+        final Comparator<? super GiveMeCoinsWorkerInfo> workerComparator = new Comparator<GiveMeCoinsWorkerInfo>()
+        {
+
+            @Override
+            public int compare(GiveMeCoinsWorkerInfo lhs, GiveMeCoinsWorkerInfo rhs) {
+
+                if( lhs.getHashrate() > rhs.getHashrate() )
+                {
+                    return -1;
+                }
+                else if(lhs.getHashrate() == rhs.getHashrate())
+                {
+                    return lhs.getUsername().compareTo( lhs.getUsername() ) ;
+                }
+                else
+                {
+                    return 1;
+                }
+
+            }
+        };
+
+        Collections.sort(giveMeCoinWorkers, workerComparator);
        
     }
 
-    public ArrayList<GiveMeCoinsWorkerInfo> getGiveMeCoinWorkers() {
+
+
+    ArrayList<GiveMeCoinsWorkerInfo> getGiveMeCoinWorkers() {
         return giveMeCoinWorkers;
     }
 
-    public void addGiveMeCoinWorker( GiveMeCoinsWorkerInfo para_NewWorker){
+    private void addGiveMeCoinWorker( GiveMeCoinsWorkerInfo para_NewWorker){
         giveMeCoinWorkers.add(para_NewWorker);
     }
 
-    public int getTotal_hashrate() {
+    int getTotal_hashrate() {
         return total_hashrate;
     }
 
-    public void setTotal_hashrate(int total_hashrate) {
+    private void setTotal_hashrate(int total_hashrate) {
         this.total_hashrate = total_hashrate;
     }
 
-    public double getConfirmed_rewards() {
+    double getConfirmed_rewards() {
         return confirmed_rewards;
     }
 
-    public void setConfirmed_rewards(double confirmed_rewards) {
+    private void setConfirmed_rewards(double confirmed_rewards) {
         this.confirmed_rewards = confirmed_rewards;
     }
 
-    public String getUsername() {
+    String getUsername() {
         return username;
     }
 
-    public void setUsername(String username) {
+    private void setUsername(String username) {
         this.username = username;
     }
 
-    public double getRound_estimate() {
+    double getRound_estimate() {
         return round_estimate;
     }
 
-    public void setRound_estimate(double round_estimate) {
+    private void setRound_estimate(double round_estimate) {
         this.round_estimate = round_estimate;
     }
 
-    public double getPayout_history() {
+    private double getPayout_history() {
         return payout_history;
     }
 
-    public void setPayout_history(double payout_history) {
+    private void setPayout_history(double payout_history) {
         this.payout_history = payout_history;
     }
 
-    public long getRound_shares() {
+    long getRound_shares() {
         return round_shares;
     }
 
-    public void setRound_shares(long round_shares) {
+    private void setRound_shares(long round_shares) {
         this.round_shares = round_shares;
     }
 

@@ -30,9 +30,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -46,21 +44,22 @@ public class GMCService extends Service{
 	private final Handler mHandler;
 	private static final String TAG = "GMCService";
 	private ReceiveDataThread mReceiveData;
-	public static String url_fixed;
-	Timer timer;
+	static String url_fixed;
+	private Timer timer;
 	
-	public GMCService(Context context, Handler handler) {
+	public GMCService(Handler handler) {
 		mHandler=handler;
 		
 	}
-	public synchronized void start(String... urls) {
+	
+	private synchronized void start(String... urls) {
 		if(urls.length==0) {
 			Log.e(TAG,"Bad URL handed to service");
 			MainScreen.mService=null;
 			return;
 		}
 		if(DEBUG) Log.d(TAG,"Service started");
-		url_fixed=urls[0];
+		url_fixed = urls[0];
 		if(mReceiveData==null) {
 			timer = new Timer();
 			TimerTask ReLoadThread = new TimerTask() {
@@ -79,7 +78,7 @@ public class GMCService extends Service{
 		}
 	}
 	
-	public synchronized void stop() {
+	private synchronized void stop() {
 		timer.cancel();
 		if(DEBUG) Log.d(TAG,"Timer cancelled");
 		if(mReceiveData!=null) {
@@ -90,11 +89,11 @@ public class GMCService extends Service{
 	}
 	
 	private class ReceiveDataThread extends Thread {
-		URL url=null;
-		InputStream inputStream=null;
-		BufferedReader reader = null;
-		JsonReader jsonAll=null;
-		String url_string;
+		private URL url=null;
+		private InputStream inputStream=null;
+		private BufferedReader reader = null;
+		private JsonReader jsonAll=null;
+		private String url_string;
 		private static final String TAG = "ReceiveDataThread";
 		
 		public ReceiveDataThread (String urls){
@@ -105,6 +104,7 @@ public class GMCService extends Service{
 			}
 		}
 		
+        @Override
 		public void run() {
 			// TODO Auto-generated method stub
 						
@@ -121,10 +121,11 @@ public class GMCService extends Service{
 						mHandler.sendMessage(send);
 							try {
 								inputStream = url.openStream();
-							} catch (IOException e1) {
+							} catch (Exception e1) {
 								// TODO Auto-generated catch block
 								e1.printStackTrace();
 								Log.e(TAG,"InputStream IOException");
+								cancel();
 							}
 						if(DEBUG) Log.d(TAG,"Connection should be open by now");
 				    	try {
@@ -142,7 +143,7 @@ public class GMCService extends Service{
 				if(jsonAll==null) jsonAll = new JsonReader(reader);
 			} catch (Exception e1) {
 				// TODO Auto-generated catch block
-				jsonAll = null;
+				cancel();
 			}
 			//now lets parse the output form give-me-coins
 			if(DEBUG) Log.d(TAG,"Parsing json");
@@ -162,17 +163,17 @@ public class GMCService extends Service{
 								case NAME:
 									if(DEBUG)Log.d(TAG,"Main NAME");
 									String name=jsonAll.nextName();
-									if (name.equals("username")) {
+									if ("username".equals(name)) {
 										MainScreen.username=jsonAll.nextString();
-									} else if(name.equals("confirmed_rewards")) {
+									} else if("confirmed_rewards".equals(name)) {
 										MainScreen.confirmed_rewards=jsonAll.nextString();
-									} else if(name.equals("round_estimate")) {
+									} else if("round_estimate".equals(name)) {
 										MainScreen.round_estimate=jsonAll.nextString();
-									} else if (name.equals("total_hashrate")) {
+									} else if ("total_hashrate".equals(name)) {
 										MainScreen.total_hashrate=jsonAll.nextString();
-									} else if (name.equals("round_shares")) {
+									} else if ("round_shares".equals(name)) {
 										MainScreen.round_shares=jsonAll.nextString();
-									} else if (name.equals("workers")) {
+									} else if ("workers".equals(name)) {
 										//JsonReader workerobj = new JsonReader(reader);
 										ParseWorkers(jsonAll,0);
 									} else {
@@ -202,7 +203,13 @@ public class GMCService extends Service{
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 					Log.w(TAG,"JSON MAIN hasNext failed!");
-				}	
+					cancel();
+				} catch (NullPointerException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					Log.w(TAG,"JSON MAIN hasNext failed!");
+					cancel();
+				}
 		   			if(DEBUG) Log.d(TAG,"username: " + MainScreen.username + " |round_estimate: " + MainScreen.round_estimate +
 								" |total_hashrate: " + MainScreen.total_hashrate + " |round_shares: " + MainScreen.round_shares);
 					send = mHandler.obtainMessage(MainScreen.DATA_PROGRESS);
@@ -217,24 +224,24 @@ public class GMCService extends Service{
 					cancel();
 		}
 
-		public void cancel() {
+		private void cancel() {
 	   		//Perform CLEANUP !!!!
 			try {
-				jsonAll.close();
+				if(jsonAll!=null) jsonAll.close();
 				if(DEBUG) Log.d(TAG,"MAIN JSON closed");
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		    try {
-				reader.close();
+				if(reader!=null) reader.close();
 				if(DEBUG) Log.d(TAG,"BufferedReader closed");
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 	   		try {
-				inputStream.close();
+	   			if(inputStream!=null) inputStream.close();
 				if(DEBUG) Log.d(TAG,"InputStream closed");
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -268,16 +275,16 @@ public class GMCService extends Service{
 						case NAME:
 							String workers=jsonAll.nextName();
 							if(DEBUG) Log.d(TAG,"JSON Name: " + workers + " next value: " + jsonAll.peek() +" i="+i);
-							if(workers.equals("alive")) {
+							if ("alive".equals(workers)) {
 									MainScreen.worker_alive[i]=jsonAll.nextString();					
-							} else if(workers.equals("hashrate")) {
+							} else if("hashrate".equals(workers)) {
 									MainScreen.worker_hashrate[i]=jsonAll.nextString();
-							} else if (workers.equals("username")) {
+							} else if ("username".equals(workers)) {
 									MainScreen.worker_name[i]=jsonAll.nextString();
 									jsonAll.endObject();
 									if(DEBUG) Log.d(TAG,"JSON endObject");
 									++i;
-							} else if (workers.equals("last_share_timestamp")) {
+							} else if ("last_share_timestamp".equals(workers)) {
 									if(DEBUG) Log.d(TAG,"last_share_timestamp: ");
 									switch(jsonAll.peek()) {
 										case STRING:
